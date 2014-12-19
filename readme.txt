@@ -11,10 +11,6 @@ http://blog.csdn.net/leixiaohua1020
 是最简单的FFmpeg音频编码方面的教程。
 通过学习本例子可以了解FFmpeg的编码流程。
 
-FFmpeg类库版本：2014.5.6
-
 This software encode PCM data to AAC bitstream.
 It's the simplest audio encoding software based on FFmpeg. 
 Suitable for beginner of FFmpeg 
-
-FFmpeg version: 2014.5.6

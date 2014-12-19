@@ -1,4 +1,4 @@
-/* 
+/**
  *最简单的基于FFmpeg的音频编码器
  *Simplest FFmpeg Audio Encoder
  *
@@ -16,16 +16,44 @@
  *Suitable for beginner of FFmpeg 
  */
 
-#include "stdafx.h"
+#include <stdio.h>
 
 extern "C"
 {
 #include "libavcodec\avcodec.h"
 #include "libavformat\avformat.h"
-#include "libswscale\swscale.h"
 };
 
-int _tmain(int argc, _TCHAR* argv[])
+int flush_encoder(AVFormatContext *fmt_ctx,unsigned int stream_index){
+	int ret;
+	int got_frame;
+	AVPacket enc_pkt;
+	if (!(fmt_ctx->streams[stream_index]->codec->codec->capabilities &
+		CODEC_CAP_DELAY))
+		return 0;
+	while (1) {
+		enc_pkt.data = NULL;
+		enc_pkt.size = 0;
+		av_init_packet(&enc_pkt);
+		ret = avcodec_encode_audio2 (fmt_ctx->streams[stream_index]->codec, &enc_pkt,
+			NULL, &got_frame);
+		av_frame_free(NULL);
+		if (ret < 0)
+			break;
+		if (!got_frame){
+			ret=0;
+			break;
+		}
+		printf("Flush Encoder: Succeed to encode 1 frame! (编码成功1帧！)\tsize:%5d\n",enc_pkt.size);
+		/* mux encoded frame */
+		ret = av_write_frame(fmt_ctx, &enc_pkt);
+		if (ret < 0)
+			break;
+	}
+	return ret;
+}
+
+int main(int argc, char* argv[])
 {
 	AVFormatContext* pFormatCtx;
 	AVOutputFormat* fmt;
@@ -34,35 +62,37 @@ int _tmain(int argc, _TCHAR* argv[])
 	AVCodec* pCodec;
 
 	uint8_t* frame_buf;
-	AVFrame* frame;
-	int size;
+	AVFrame* pFrame;
+	AVPacket pkt;
 
-	FILE *in_file = fopen("tdjm.pcm", "rb");	//音频PCM采样数据 
-	int framenum=1000;	//音频帧数
-	const char* out_file = "tdjm.aac";					//输出文件路径
+	int got_frame=0;
+	int ret=0;
+	int size=0;
+
+	FILE *in_file = fopen("tdjm.pcm", "rb");	//Raw PCM data
+	int framenum=1000;							//Audio frame number
+	const char* out_file = "tdjm.aac";			//Output URL
 
 
 	av_register_all();
 
-	//方法1.组合使用几个函数
+	//Method 1.
 	pFormatCtx = avformat_alloc_context();
-	//猜格式
 	fmt = av_guess_format(NULL, out_file, NULL);
 	pFormatCtx->oformat = fmt;
 
 
-	//方法2.更加自动化一些
+	//Method 2.
 	//avformat_alloc_output_context2(&pFormatCtx, NULL, NULL, out_file);
 	//fmt = pFormatCtx->oformat;
 
-	//注意输出路径
-	if (avio_open(&pFormatCtx->pb,out_file, AVIO_FLAG_READ_WRITE) < 0)
-	{
-		printf("输出文件打开失败！\n");
+	//Open output URL
+	if (avio_open(&pFormatCtx->pb,out_file, AVIO_FLAG_READ_WRITE) < 0){
+		printf("Failed to open output file! (输出文件打开失败！)\n");
 		return -1;
 	}
 
-	audio_st = av_new_stream(pFormatCtx, 0);
+	audio_st = avformat_new_stream(pFormatCtx, 0);
 	if (audio_st==NULL){
 		return -1;
 	}
@@ -75,71 +105,71 @@ int _tmain(int argc, _TCHAR* argv[])
 	pCodecCtx->channels = av_get_channel_layout_nb_channels(pCodecCtx->channel_layout);
 	pCodecCtx->bit_rate = 64000;  
 
-	//输出格式信息
+	//Show some information
 	av_dump_format(pFormatCtx, 0, out_file, 1);
 
 	pCodec = avcodec_find_encoder(pCodecCtx->codec_id);
-	if (!pCodec)
-	{
-		printf("没有找到合适的编码器！\n");
+	if (!pCodec){
+		printf("Can not find encoder! (没有找到合适的编码器！)\n");
 		return -1;
 	}
-	if (avcodec_open2(pCodecCtx, pCodec,NULL) < 0)
-	{
-		printf("编码器打开失败！\n");
+	if (avcodec_open2(pCodecCtx, pCodec,NULL) < 0){
+		printf("Failed to open encoder! (编码器打开失败！)\n");
 		return -1;
 	}
-	frame = avcodec_alloc_frame();
-	frame->nb_samples= pCodecCtx->frame_size;
-	frame->format= pCodecCtx->sample_fmt;
+	pFrame = avcodec_alloc_frame();
+	pFrame->nb_samples= pCodecCtx->frame_size;
+	pFrame->format= pCodecCtx->sample_fmt;
 	
 	size = av_samples_get_buffer_size(NULL, pCodecCtx->channels,pCodecCtx->frame_size,pCodecCtx->sample_fmt, 1);
 	frame_buf = (uint8_t *)av_malloc(size);
-	avcodec_fill_audio_frame(frame, pCodecCtx->channels, pCodecCtx->sample_fmt,(const uint8_t*)frame_buf, size, 1);
+	avcodec_fill_audio_frame(pFrame, pCodecCtx->channels, pCodecCtx->sample_fmt,(const uint8_t*)frame_buf, size, 1);
 	
-	//写文件头
+	//Write Header
 	avformat_write_header(pFormatCtx,NULL);
 
-	AVPacket pkt;
 	av_new_packet(&pkt,size);
 
 	for (int i=0; i<framenum; i++){
-		//读入PCM
-		if (fread(frame_buf, 1, size, in_file) < 0)
-		{
-			printf("文件读取错误！\n");
+		//Read PCM
+		if (fread(frame_buf, 1, size, in_file) < 0){
+			printf("Failed to read raw data! (文件读取错误！)\n");
 			return -1;
 		}else if(feof(in_file)){
 			break;
 		}
-		frame->data[0] = frame_buf;  //采样信号
+		pFrame->data[0] = frame_buf;  //采样信号
 
-		frame->pts=i*100;
-		int got_frame=0;
-		//编码
-		int ret = avcodec_encode_audio2(pCodecCtx, &pkt,frame, &got_frame);
-		if(ret < 0)
-		{
-			printf("编码错误！\n");
+		pFrame->pts=i*100;
+		got_frame=0;
+		//Encode
+		ret = avcodec_encode_audio2(pCodecCtx, &pkt,pFrame, &got_frame);
+		if(ret < 0){
+			printf("Failed to encode! (编码错误！)\n");
 			return -1;
 		}
-		if (got_frame==1)
-		{
-			printf("编码成功第%d帧！\n",i);
+		if (got_frame==1){
+			printf("Succeed to encode 1 frame! (编码成功1帧！)\tsize:%5d\n",pkt.size);
 			pkt.stream_index = audio_st->index;
 			ret = av_write_frame(pFormatCtx, &pkt);
 			av_free_packet(&pkt);
 		}
 	}
 	
-	//写文件尾
+	//Flush Encoder
+	ret = flush_encoder(pFormatCtx,0);
+	if (ret < 0) {
+		printf("Flushing encoder failed\n");
+		return -1;
+	}
+
+	//Write Trailer
 	av_write_trailer(pFormatCtx);
 
-	//清理
-	if (audio_st)
-	{
+	//Clean
+	if (audio_st){
 		avcodec_close(audio_st->codec);
-		av_free(frame);
+		av_free(pFrame);
 		av_free(frame_buf);
 	}
 	avio_close(pFormatCtx->pb);
