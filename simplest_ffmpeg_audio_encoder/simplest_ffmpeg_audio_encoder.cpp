@@ -69,10 +69,12 @@ int main(int argc, char* argv[])
 	int ret=0;
 	int size=0;
 
-	FILE *in_file = fopen("tdjm.pcm", "rb");	//Raw PCM data
-	int framenum=1000;							//Audio frame number
-	const char* out_file = "tdjm.aac";			//Output URL
+	FILE *in_file=NULL;	                        //Raw PCM data
+	int framenum=1000;                          //Audio frame number
+	const char* out_file = "tdjm.aac";          //Output URL
+	int i;
 
+	in_file= fopen("tdjm.pcm", "rb");
 
 	av_register_all();
 
@@ -88,7 +90,7 @@ int main(int argc, char* argv[])
 
 	//Open output URL
 	if (avio_open(&pFormatCtx->pb,out_file, AVIO_FLAG_READ_WRITE) < 0){
-		printf("Failed to open output file! (输出文件打开失败！)\n");
+		printf("Failed to open output file!\n");
 		return -1;
 	}
 
@@ -110,11 +112,11 @@ int main(int argc, char* argv[])
 
 	pCodec = avcodec_find_encoder(pCodecCtx->codec_id);
 	if (!pCodec){
-		printf("Can not find encoder! (没有找到合适的编码器！)\n");
+		printf("Can not find encoder!\n");
 		return -1;
 	}
 	if (avcodec_open2(pCodecCtx, pCodec,NULL) < 0){
-		printf("Failed to open encoder! (编码器打开失败！)\n");
+		printf("Failed to open encoder!\n");
 		return -1;
 	}
 	pFrame = avcodec_alloc_frame();
@@ -130,26 +132,26 @@ int main(int argc, char* argv[])
 
 	av_new_packet(&pkt,size);
 
-	for (int i=0; i<framenum; i++){
+	for (i=0; i<framenum; i++){
 		//Read PCM
 		if (fread(frame_buf, 1, size, in_file) < 0){
-			printf("Failed to read raw data! (文件读取错误！)\n");
+			printf("Failed to read raw data! \n");
 			return -1;
 		}else if(feof(in_file)){
 			break;
 		}
-		pFrame->data[0] = frame_buf;  //采样信号
+		pFrame->data[0] = frame_buf;  //PCM Data
 
 		pFrame->pts=i*100;
 		got_frame=0;
 		//Encode
 		ret = avcodec_encode_audio2(pCodecCtx, &pkt,pFrame, &got_frame);
 		if(ret < 0){
-			printf("Failed to encode! (编码错误！)\n");
+			printf("Failed to encode!\n");
 			return -1;
 		}
 		if (got_frame==1){
-			printf("Succeed to encode 1 frame! (编码成功1帧！)\tsize:%5d\n",pkt.size);
+			printf("Succeed to encode 1 frame! \tsize:%5d\n",pkt.size);
 			pkt.stream_index = audio_st->index;
 			ret = av_write_frame(pFormatCtx, &pkt);
 			av_free_packet(&pkt);
