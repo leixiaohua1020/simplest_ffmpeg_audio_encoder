@@ -18,11 +18,28 @@
 
 #include <stdio.h>
 
+#define __STDC_CONSTANT_MACROS
+
+#ifdef _WIN32
+//Windows
 extern "C"
 {
 #include "libavcodec\avcodec.h"
 #include "libavformat\avformat.h"
 };
+#else
+//Linux...
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+#include <libavcodec\avcodec.h>
+#include <libavformat\avformat.h>
+#ifdef __cplusplus
+};
+#endif
+#endif
+
 
 int flush_encoder(AVFormatContext *fmt_ctx,unsigned int stream_index){
 	int ret;
