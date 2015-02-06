@@ -24,8 +24,8 @@
 //Windows
 extern "C"
 {
-#include "libavcodec\avcodec.h"
-#include "libavformat\avformat.h"
+#include "libavcodec/avcodec.h"
+#include "libavformat/avformat.h"
 };
 #else
 //Linux...
@@ -33,8 +33,8 @@ extern "C"
 extern "C"
 {
 #endif
-#include <libavcodec\avcodec.h>
-#include <libavformat\avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
 #ifdef __cplusplus
 };
 #endif
@@ -61,7 +61,7 @@ int flush_encoder(AVFormatContext *fmt_ctx,unsigned int stream_index){
 			ret=0;
 			break;
 		}
-		printf("Flush Encoder: Succeed to encode 1 frame! (±àÂë³É¹¦1Ö¡£¡)\tsize:%5d\n",enc_pkt.size);
+		printf("Flush Encoder: Succeed to encode 1 frame!\tsize:%5d\n",enc_pkt.size);
 		/* mux encoded frame */
 		ret = av_write_frame(fmt_ctx, &enc_pkt);
 		if (ret < 0)
@@ -136,7 +136,7 @@ int main(int argc, char* argv[])
 		printf("Failed to open encoder!\n");
 		return -1;
 	}
-	pFrame = avcodec_alloc_frame();
+	pFrame = av_frame_alloc();
 	pFrame->nb_samples= pCodecCtx->frame_size;
 	pFrame->format= pCodecCtx->sample_fmt;
 	
@@ -151,7 +151,7 @@ int main(int argc, char* argv[])
 
 	for (i=0; i<framenum; i++){
 		//Read PCM
-		if (fread(frame_buf, 1, size, in_file) < 0){
+		if (fread(frame_buf, 1, size, in_file) <= 0){
 			printf("Failed to read raw data! \n");
 			return -1;
 		}else if(feof(in_file)){
